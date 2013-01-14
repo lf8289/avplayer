@@ -10,6 +10,14 @@
 
 #include <stdint.h>
 
+/* 定义bool值 */
+#ifndef _MSC_VER
+enum bool_type
+{
+	FALSE, TRUE
+};
+#endif
+
 struct AVFrame;
 /* 媒体数据源接口. */
 #define MEDIA_TYPE_FILE	0

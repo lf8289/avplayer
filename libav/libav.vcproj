@@ -181,7 +181,23 @@
 			UniqueIdentifier="{4FC737F1-C7A5-4376-A066-2A32D752A2FF}"
 			>
 			<File
+				RelativePath=".\avaudioplay.c"
+				>
+			</File>
+			<File
+				RelativePath=".\avlogger.c"
+				>
+			</File>
+			<File
 				RelativePath=".\avplay.c"
+				>
+			</File>
+			<File
+				RelativePath=".\avqueue.c"
+				>
+			</File>
+			<File
+				RelativePath=".\avvideoplay.c"
 				>
 			</File>
 		</Filter>
@@ -191,7 +207,23 @@
 			UniqueIdentifier="{93995380-89BD-4b04-88EB-625FBE52EBFB}"
 			>
 			<File
+				RelativePath=".\avaudioplay.h"
+				>
+			</File>
+			<File
+				RelativePath=".\avlogger.h"
+				>
+			</File>
+			<File
 				RelativePath=".\avplay.h"
+				>
+			</File>
+			<File
+				RelativePath=".\avqueue.h"
+				>
+			</File>
+			<File
+				RelativePath=".\avvideoplay.h"
 				>
 			</File>
 			<File
