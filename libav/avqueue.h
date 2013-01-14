@@ -1,26 +1,10 @@
 /*
-* avplay.h
-* ~~~~~~~~
-*
-* Copyright (c) 2011 Jack (jack.wgm@gmail.com)
+* avqueue.h
 *
 */
 
-#ifndef AVQUEUE_H_
-#define AVQUEUE_H_
-
-#ifdef _MSC_VER
-#	include <windows.h>
-#	define inline
-#	define __CRT__NO_INLINE
-#	ifdef API_EXPORTS
-#		define EXPORT_API __declspec(dllexport)
-#	else
-#		define EXPORT_API __declspec(dllimport)
-#	endif
-#else
-#	define EXPORT_API
-#endif
+#ifndef __AV_QUEUE_H__
+#define __AV_QUEUE_H__
 
 #include <pthread.h>
 #include <libavformat/avio.h>
@@ -75,4 +59,4 @@ extern "C" {
 }
 #endif
 
-#endif /* AVQUEUE_H_ */
+#endif /*__AV_QUEUE_H__*/
