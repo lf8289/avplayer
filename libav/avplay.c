@@ -482,16 +482,16 @@ int initialize(avplay *play, source_context *sc)
 	/* 初始化队列. */
 	if (play->m_audio_index != -1)
 	{
-		play->m_audio_q.m_type = QUEUE_PACKET;
+		queue_set_type(&play->m_audio_q, QUEUE_PACKET);
 		queue_init(&play->m_audio_q);
-		play->m_audio_dq.m_type = QUEUE_AVFRAME;
+		queue_set_type(&play->m_audio_dq, QUEUE_AVFRAME);
 		queue_init(&play->m_audio_dq);
 	}
 	if (play->m_video_index != -1)
 	{
-		play->m_video_q.m_type = QUEUE_PACKET;
+		queue_set_type(&play->m_video_q, QUEUE_PACKET);
 		queue_init(&play->m_video_q);
-		play->m_video_dq.m_type = QUEUE_AVFRAME;
+		queue_set_type(&play->m_video_dq, QUEUE_AVFRAME);
 		queue_init(&play->m_video_dq);
 	}
 
@@ -663,21 +663,11 @@ void av_stop(avplay *play)
 		play->m_source_ctx->abort = TRUE;
 
 	/* 通知各线程退出. */
-#if 0
-	play->m_audio_q.abort_request = TRUE;
-	pthread_cond_signal(&play->m_audio_q.m_cond);
-	play->m_video_q.abort_request = TRUE;
-	pthread_cond_signal(&play->m_video_q.m_cond);
-	play->m_audio_dq.abort_request = TRUE;
-	pthread_cond_signal(&play->m_audio_dq.m_cond);
-	play->m_video_dq.abort_request = TRUE;
-	pthread_cond_signal(&play->m_video_dq.m_cond);
-#else
 	queue_stop(&play->m_audio_q);
 	queue_stop(&play->m_video_q);
 	queue_stop(&play->m_audio_dq);
 	queue_stop(&play->m_video_dq);
-#endif
+
 	/* 先等线程退出, 再释放资源. */
 	wait_for_threads(play);
 
@@ -945,10 +935,10 @@ void* read_pkt_thrd(void *param)
 		ret = av_read_frame(play->m_format_ctx, &packet);
 		if (ret < 0)
 		{
-			if (play->m_video_q.m_size == 0 &&
-				play->m_audio_q.m_size == 0 &&
-				play->m_video_dq.m_size == 0 &&
-				play->m_audio_dq.m_size == 0)
+			if (queue_size(&play->m_video_q) == 0 &&
+				queue_size(&play->m_audio_q) == 0 &&
+				queue_size(&play->m_video_dq) == 0 &&
+				queue_size(&play->m_audio_dq) == 0)
 				play->m_play_status = completed;
 			Sleep(100);
 			continue;

@@ -6,6 +6,19 @@
 #ifndef __AV_QUEUE_H__
 #define __AV_QUEUE_H__
 
+#ifdef _MSC_VER
+#	include <windows.h>
+#	define inline
+#	define __CRT__NO_INLINE
+#	ifdef API_EXPORTS
+#		define EXPORT_API __declspec(dllexport)
+#	else
+#		define EXPORT_API __declspec(dllimport)
+#	endif
+#else
+#	define EXPORT_API
+#endif
+
 #include <pthread.h>
 #include <libavformat/avio.h>
 #include <libavcodec/avcodec.h>
@@ -50,6 +63,21 @@ extern "C" {
 	/* 入队出队列操作. */
 	int get_queue(av_queue *q, void *p);
 	int put_queue(av_queue *q, void *p);
+
+	static inline int queue_size(av_queue *q)
+	{
+		return q->m_size;
+	}
+
+	static inline int queue_type(av_queue *q)
+	{
+		return q->m_type;
+	}
+
+	static inline void queue_set_type(av_queue *q, int type)
+	{
+		q->m_type = type;
+	}
 
 	void chk_queue(av_queue *q, int size);
 
