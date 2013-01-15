@@ -22,21 +22,10 @@
 #	define EXPORT_API
 #endif
 
-#include <pthread.h>
-#include <libavformat/avio.h>
-#include <libavcodec/avcodec.h>
-#include <libavformat/avformat.h>
-#include <libavutil/avutil.h>
-#include <libswscale/swscale.h>
-#include <libswresample/swresample.h>
-#include <assert.h>
 #include "globals.h"
 #include "avqueue.h"
-#include "avlogger.h"
+#include "avaudioplay.h"
 
-#ifdef  __cplusplus
-extern "C" {
-#endif
 
 	struct AVFormatContext;
 	struct ReSampleContext;
@@ -77,6 +66,8 @@ extern "C" {
 #define VIDEO_RENDER_OPENGL		2
 #define VIDEO_RENDER_SOFT		3
 
+
+extern "C" {
 	/* 数据源结构分配和释放. */
 	EXPORT_API source_context* alloc_media_source(int type, const char *addition, int addition_len, int64_t size);
 	EXPORT_API void free_media_source(source_context *ctx);
@@ -88,7 +79,7 @@ extern "C" {
 	/* 视频渲染结构分配和释放. */
 	EXPORT_API vo_context* alloc_video_render(void *user_data);
 	EXPORT_API void free_video_render(vo_context *ctx);
-
+}
 	/* 计算视频实时帧率和实时码率的时间单元. */
 #define MAX_CALC_SEC 5
 
@@ -104,9 +95,11 @@ extern "C" {
 		av_queue m_video_dq;
 
 		/* 各解码渲染线程.	*/
+#if 0
 		pthread_t m_audio_dec_thrd;
-		pthread_t m_video_dec_thrd;
 		pthread_t m_audio_render_thrd;
+#endif
+		pthread_t m_video_dec_thrd;
 		pthread_t m_video_render_thrd;
 		pthread_t m_read_pkt_thrd;
 
@@ -214,8 +207,10 @@ extern "C" {
 		/* 停止标志.	*/
 		int m_abort;
 
-	} avplay;
+		avaudioplay* m_audioplay;
 
+	} avplay;
+extern "C" {
 	/*
 	* Assign a player structural context.
 	* @If the function succeeds, the return value is a pointer to the avplay,
@@ -403,15 +398,11 @@ extern "C" {
 	*/
 	EXPORT_API void alpha_blend(AVFrame *frame, uint8_t *rgba,
 		int fw, int fh, int rgba_w, int rgba_h, int x, int y);
-
+}
 
 /********************************************************************************
        for avvideoplay
 ********************************************************************************/
 	double master_clock(avplay *play);
-
-#ifdef  __cplusplus
-}
-#endif
 
 #endif /* AVPLAY_H_ */

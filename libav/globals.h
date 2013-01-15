@@ -8,7 +8,20 @@
 #ifndef __AVPLAYER_GLOBALS_H__
 #define __AVPLAYER_GLOBALS_H__
 
+
+
+extern "C" {
+
 #include <stdint.h>
+#include <libavformat/avio.h>
+#include <libavcodec/avcodec.h>
+#include <libavformat/avformat.h>
+#include <libavutil/avutil.h>
+#include <libswscale/swscale.h>
+#include <libswresample/swresample.h>
+
+	#include <math.h>
+}
 
 /* 定义bool值 */
 #ifndef _MSC_VER
@@ -19,6 +32,12 @@ enum bool_type
 #endif
 
 struct AVFrame;
+
+
+static AVPacket flush_pkt;
+static AVFrame flush_frm;
+
+
 /* 媒体数据源接口. */
 #define MEDIA_TYPE_FILE	0
 #define MEDIA_TYPE_BT	1

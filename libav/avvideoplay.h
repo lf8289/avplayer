@@ -5,11 +5,9 @@
 #ifndef __AV_VIDEO_PLAY_H__
 #define __AV_VIDEO_PLAY_H__
 
+#include "globals.h"
+#include "avqueue.h"
 #include "avplay.h"
-
-#ifdef  __cplusplus
-extern "C" {
-#endif
 
 	void* video_dec_thrd(void *param);
 
@@ -23,8 +21,5 @@ extern "C" {
 
 	double video_clock(avplay *play);
 
-#ifdef  __cplusplus
-}
-#endif
 
 #endif /*__AV_VIDEO_PLAY_H__*/

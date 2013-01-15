@@ -14,6 +14,14 @@
 #include "globals.h"
 #include "avplayer.h"
 
+#if 0
+//#include "avlogger.h"
+#else
+static int logger(const char *fmt, ...)
+{
+	return 0;
+}
+#endif
 #pragma once
 
 
@@ -21,8 +29,8 @@
 class avplay_logger
 {
 public:
-	avplay_logger() { ::logger_to_file("avplayer.log"); }
-	~avplay_logger() { ::close_logger_file(); }
+	avplay_logger() { /*::logger_to_file("avplayer.log");*/ }
+	~avplay_logger() { /*::close_logger_file(); */}
 };
 
 // 字幕插件统一接口类.

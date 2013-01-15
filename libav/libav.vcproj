@@ -181,23 +181,23 @@
 			UniqueIdentifier="{4FC737F1-C7A5-4376-A066-2A32D752A2FF}"
 			>
 			<File
-				RelativePath=".\avaudioplay.c"
+				RelativePath=".\avaudioplay.cpp"
 				>
 			</File>
 			<File
-				RelativePath=".\avlogger.c"
+				RelativePath=".\avlogger.cpp"
 				>
 			</File>
 			<File
-				RelativePath=".\avplay.c"
+				RelativePath=".\avplay.cpp"
 				>
 			</File>
 			<File
-				RelativePath=".\avqueue.c"
+				RelativePath=".\avqueue.cpp"
 				>
 			</File>
 			<File
-				RelativePath=".\avvideoplay.c"
+				RelativePath=".\avvideoplay.cpp"
 				>
 			</File>
 		</Filter>

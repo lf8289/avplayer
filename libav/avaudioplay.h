@@ -5,35 +5,31 @@
 #ifndef __AV_AUDIO_H__
 #define __AV_AUDIO_H__
 
-#include <pthread.h>
-#include <libavformat/avio.h>
-#include <libavcodec/avcodec.h>
-#include <libavformat/avformat.h>
-#include <libavutil/avutil.h>
-#include <libswscale/swscale.h>
-#include <libswresample/swresample.h>
-#include <assert.h>
 #include "globals.h"
 #include "avqueue.h"
-#include "avlogger.h"
+//#include "avplay.h"
 
-#ifdef  __cplusplus
-extern "C" {
-#endif
+struct avplay;
 
-void* audio_dec_thrd(void *param);
+typedef struct _avaudioplay {
+	pthread_t m_audio_render_thrd;
+	pthread_t m_audio_dec_thrd;
 
-/* 渲染线程. */
-void* audio_render_thrd(void *param);
+	struct avplay* m_play;
 
-/* 视频帧复制. */
-void audio_copy(avplay *play, AVFrame *dst, AVFrame *src);
+	/* 停止标志.	*/
+	int m_abort;
+} avaudioplay;
+
+avaudioplay* avaudioplay_create(avplay* play);
+
+int avaudioplay_start(avaudioplay* audio);
+
+int avaudioplay_stop(avaudioplay* audio);
+
+void avaudioplay_destroy(avaudioplay* audio);
 
 /* 时钟函数. */
-double audio_clock(avplay *play);
-
-#ifdef  __cplusplus
-}
-#endif
+double avaudioplay_clock(avaudioplay* audio);
 
 #endif /* AVPLAY_H_ */

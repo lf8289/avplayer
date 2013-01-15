@@ -6,32 +6,17 @@
 #ifndef __AV_QUEUE_H__
 #define __AV_QUEUE_H__
 
-#ifdef _MSC_VER
-#	include <windows.h>
-#	define inline
-#	define __CRT__NO_INLINE
-#	ifdef API_EXPORTS
-#		define EXPORT_API __declspec(dllexport)
-#	else
-#		define EXPORT_API __declspec(dllimport)
-#	endif
-#else
-#	define EXPORT_API
-#endif
-
-#include <pthread.h>
-#include <libavformat/avio.h>
-#include <libavcodec/avcodec.h>
-#include <libavformat/avformat.h>
-#include <libavutil/avutil.h>
-#include <libswscale/swscale.h>
-#include <libswresample/swresample.h>
-#include <assert.h>
 #include "globals.h"
 
-#ifdef  __cplusplus
-extern "C" {
+#ifdef _MSC_VER
+#	include <windows.h>
 #endif
+#include <pthread.h>
+
+//#include <libavformat/avformat.h>
+
+#include <assert.h>
+
 
 
 	/* 队列类型.	*/
@@ -82,9 +67,5 @@ extern "C" {
 	void chk_queue(av_queue *q, int size);
 
 	void queue_stop(av_queue *q);
-
-#ifdef  __cplusplus
-}
-#endif
 
 #endif /*__AV_QUEUE_H__*/
