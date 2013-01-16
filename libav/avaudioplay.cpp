@@ -10,11 +10,13 @@ static void* audio_render_thrd(void *param);
 /* 视频帧复制. */
 static void audio_copy(avplay *play, AVFrame *dst, AVFrame *src);
 
-avaudioplay* avaudioplay_create(avplay* play)
+avaudioplay* avaudioplay_create(avplay* play, AVCodecContext *ctx)
 {
 	avaudioplay* audio = (avaudioplay*)malloc(sizeof(avaudioplay));
 	if (audio != NULL) {
+		memset(audio, 0, sizeof(*audio));
 		audio->m_play = play;
+		audio->m_audio_ctx = ctx;
 	}
 
 	return audio;
@@ -24,6 +26,11 @@ int avaudioplay_start(avaudioplay* audio)
 {
 	pthread_attr_t attr;
 	int ret = 0;
+
+	ret = open_decoder(audio->m_audio_ctx);
+	if (ret != 0) {
+		return ret;
+	}
 
 	pthread_attr_init(&attr);
 	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
@@ -54,6 +61,19 @@ int avaudioplay_stop(avaudioplay* audio)
 	pthread_join(audio->m_audio_dec_thrd, &status);
 	pthread_join(audio->m_audio_render_thrd, &status);
 
+	if (audio->m_swr_ctx) {
+		swr_free(&audio->m_swr_ctx);
+		audio->m_swr_ctx = NULL;
+	}
+	if (audio->m_resample_ctx) {
+		audio_resample_close(audio->m_resample_ctx);
+		audio->m_resample_ctx = NULL;
+	}
+	if (audio->m_audio_ctx) {
+		avcodec_close(audio->m_audio_ctx);
+		audio->m_audio_ctx = NULL;
+	}
+
 	return 0;
 }
 
@@ -67,24 +87,25 @@ double avaudioplay_clock(avaudioplay* audio)
 	avplay *play = audio->m_play;
 	double pts;
 	int hw_buf_size, bytes_per_sec;
-	pts = play->m_audio_clock;
-	hw_buf_size = play->m_audio_buf_size - play->m_audio_buf_index;
+	pts = audio->m_audio_clock;
+	hw_buf_size = audio->m_audio_buf_size - audio->m_audio_buf_index;
 	bytes_per_sec = 0;
-	if (play->m_audio_st)
+	if (play->m_audio_st) {
 		bytes_per_sec = play->m_audio_st->codec->sample_rate * 2
-		* FFMIN(play->m_audio_st->codec->channels, 2); /* 固定为2通道.	*/
+			* FFMIN(play->m_audio_st->codec->channels, 2); /* 固定为2通道.	*/
+	}
 
-	if (fabs(play->m_audio_current_pts_drift) <= 1.0e-6)
+	if (fabs(audio->m_audio_current_pts_drift) <= 1.0e-6)
 	{
 		if (fabs(play->m_start_time) > 1.0e-6)
-			play->m_audio_current_pts_drift = pts - play->m_audio_current_pts_last;
+			audio->m_audio_current_pts_drift = pts - audio->m_audio_current_pts_last;
 		else
-			play->m_audio_current_pts_drift = pts;
+			audio->m_audio_current_pts_drift = pts;
 	}
 
 	if (bytes_per_sec)
 		pts -= (double) hw_buf_size / bytes_per_sec;
-	return pts - play->m_audio_current_pts_drift;
+	return pts - audio->m_audio_current_pts_drift;
 }
 
 static void audio_copy(avplay *play, AVFrame *dst, AVFrame* src)
@@ -92,36 +113,37 @@ static void audio_copy(avplay *play, AVFrame *dst, AVFrame* src)
 	int nb_sample;
 	int dst_buf_size;
 	int out_channels;
+	avaudioplay* audio = play->m_audioplay;
 
 	dst->linesize[0] = src->linesize[0];
 	*dst = *src;
 	dst->data[0] = NULL;
 	dst->type = 0;
-	out_channels = play->m_audio_ctx->channels;/* (FFMIN(play->m_audio_ctx->channels, 2)); */
-	nb_sample = src->linesize[0] / play->m_audio_ctx->channels / av_get_bytes_per_sample(play->m_audio_ctx->sample_fmt);
+	out_channels = audio->m_audio_ctx->channels;/* (FFMIN(audio->m_audio_ctx->channels, 2)); */
+	nb_sample = src->linesize[0] / audio->m_audio_ctx->channels / av_get_bytes_per_sample(audio->m_audio_ctx->sample_fmt);
 	dst_buf_size = nb_sample * av_get_bytes_per_sample(AV_SAMPLE_FMT_S16) * out_channels;
 	dst->data[0] = (uint8_t*) av_malloc(dst_buf_size);
 	assert(dst->data[0]);
 	avcodec_fill_audio_frame(dst, out_channels, AV_SAMPLE_FMT_S16, dst->data[0], dst_buf_size, 0);
 
 	/* 重采样到AV_SAMPLE_FMT_S16格式. */
-	if (play->m_audio_ctx->sample_fmt != AV_SAMPLE_FMT_S16)
+	if (audio->m_audio_ctx->sample_fmt != AV_SAMPLE_FMT_S16)
 	{
-		if (!play->m_swr_ctx)
+		if (!audio->m_swr_ctx)
 		{
-			uint64_t in_channel_layout = av_get_default_channel_layout(play->m_audio_ctx->channels);
+			uint64_t in_channel_layout = av_get_default_channel_layout(audio->m_audio_ctx->channels);
 			uint64_t out_channel_layout = av_get_default_channel_layout(out_channels);
-			play->m_swr_ctx = swr_alloc_set_opts(NULL, in_channel_layout, AV_SAMPLE_FMT_S16,
-				play->m_audio_ctx->sample_rate, in_channel_layout,
-				play->m_audio_ctx->sample_fmt, play->m_audio_ctx->sample_rate, 0, NULL);
-			swr_init(play->m_swr_ctx);
+			audio->m_swr_ctx = swr_alloc_set_opts(NULL, in_channel_layout, AV_SAMPLE_FMT_S16,
+				audio->m_audio_ctx->sample_rate, in_channel_layout,
+				audio->m_audio_ctx->sample_fmt, audio->m_audio_ctx->sample_rate, 0, NULL);
+			swr_init(audio->m_swr_ctx);
 		}
 
-		if (play->m_swr_ctx)
+		if (audio->m_swr_ctx)
 		{
 			int ret, out_count;
 			out_count = dst_buf_size / out_channels / av_get_bytes_per_sample(AV_SAMPLE_FMT_S16);
-			ret = swr_convert(play->m_swr_ctx, dst->data, out_count, (const uint8_t **)src->data, nb_sample);
+			ret = swr_convert(audio->m_swr_ctx, dst->data, out_count, (const uint8_t **)src->data, nb_sample);
 			if (ret < 0)
 				assert(0);
 			src->linesize[0] = dst->linesize[0] = ret * av_get_bytes_per_sample(AV_SAMPLE_FMT_S16) * out_channels;
@@ -130,21 +152,21 @@ static void audio_copy(avplay *play, AVFrame *dst, AVFrame* src)
 	}
 
 	/* 重采样到双声道. */
-	if (play->m_audio_ctx->channels > 2)
+	if (audio->m_audio_ctx->channels > 2)
 	{
-		if (!play->m_resample_ctx)
+		if (!audio->m_resample_ctx)
 		{
-			play->m_resample_ctx = av_audio_resample_init(
-				FFMIN(2, play->m_audio_ctx->channels),
-				play->m_audio_ctx->channels, play->m_audio_ctx->sample_rate,
-				play->m_audio_ctx->sample_rate, AV_SAMPLE_FMT_S16, AV_SAMPLE_FMT_S16,
+			audio->m_resample_ctx = av_audio_resample_init(
+				FFMIN(2, audio->m_audio_ctx->channels),
+				audio->m_audio_ctx->channels, audio->m_audio_ctx->sample_rate,
+				audio->m_audio_ctx->sample_rate, AV_SAMPLE_FMT_S16, AV_SAMPLE_FMT_S16,
 				16, 10, 0, 0.f);
 		}
 
-		if (play->m_resample_ctx)
+		if (audio->m_resample_ctx)
 		{
-			int samples = src->linesize[0] / (av_get_bytes_per_sample(AV_SAMPLE_FMT_S16) * play->m_audio_ctx->channels);
-			dst->linesize[0] = audio_resample(play->m_resample_ctx,
+			int samples = src->linesize[0] / (av_get_bytes_per_sample(AV_SAMPLE_FMT_S16) * audio->m_audio_ctx->channels);
+			dst->linesize[0] = audio_resample(audio->m_resample_ctx,
 				(short *) dst->data[0], (short *) src->data[0], samples) * 4;
 		}
 	}
@@ -161,6 +183,7 @@ static void* audio_dec_thrd(void *param)
 	int ret, n;
 	AVFrame avframe = { 0 }, avcopy;
 	avplay *play = (avplay*) param;
+	avaudioplay* audio = play->m_audioplay;
 	int64_t v_start_time = 0;
 	int64_t a_start_time = 0;
 
@@ -181,7 +204,7 @@ static void* audio_dec_thrd(void *param)
 			if (pkt.data == flush_pkt.data)
 			{
 				AVFrameList* lst = NULL;
-				avcodec_flush_buffers(play->m_audio_ctx);
+				avcodec_flush_buffers(audio->m_audio_ctx);
 				while (play->m_audio_dq.m_size && !play->m_abort)
 					Sleep(1);
 				pthread_mutex_lock(&play->m_audio_dq.m_mutex);
@@ -194,10 +217,10 @@ static void* audio_dec_thrd(void *param)
 
 			/* 使用pts更新音频时钟. */
 			if (pkt.pts != AV_NOPTS_VALUE)
-				play->m_audio_clock = av_q2d(play->m_audio_st->time_base) * (pkt.pts - v_start_time);
+				audio->m_audio_clock = av_q2d(play->m_audio_st->time_base) * (pkt.pts - v_start_time);
 
-			if (fabs(play->m_audio_current_pts_last) < 1.0e-6)
-				play->m_audio_current_pts_last = play->m_audio_clock;
+			if (fabs(audio->m_audio_current_pts_last) < 1.0e-6)
+				audio->m_audio_current_pts_last = audio->m_audio_clock;
 
 			/* 计算pkt缓冲数据大小. */
 			pthread_mutex_lock(&play->m_buf_size_mtx);
@@ -211,7 +234,7 @@ static void* audio_dec_thrd(void *param)
 			while (!play->m_abort)
 			{
 				int got_frame = 0;
-				ret = avcodec_decode_audio4(play->m_audio_ctx, &avframe, &got_frame, &pkt2);
+				ret = avcodec_decode_audio4(audio->m_audio_ctx, &avframe, &got_frame, &pkt2);
 				if (ret < 0)
 				{
 					printf("Audio error while decoding one frame!!!\n");
@@ -234,12 +257,12 @@ static void* audio_dec_thrd(void *param)
 					audio_copy(play, &avcopy, &avframe);
 
 					/* 将计算的pts复制到avcopy.pts.  */
-					memcpy(&avcopy.pts, &play->m_audio_clock, sizeof(double));
+					memcpy(&avcopy.pts, &audio->m_audio_clock, sizeof(double));
 
 					/* 计算下一个audio的pts值.  */
-					n = 2 * FFMIN(play->m_audio_ctx->channels, 2);
+					n = 2 * FFMIN(audio->m_audio_ctx->channels, 2);
 
-					play->m_audio_clock += ((double) avcopy.linesize[0] / (double) (n * play->m_audio_ctx->sample_rate));
+					audio->m_audio_clock += ((double) avcopy.linesize[0] / (double) (n * audio->m_audio_ctx->sample_rate));
 
 					/* 如果不是以音频同步为主, 则需要计算是否移除一些采样以同步到其它方式.	*/
 					if (play->m_av_sync_type == AV_SYNC_EXTERNAL_CLOCK ||
@@ -269,6 +292,7 @@ static void* audio_dec_thrd(void *param)
 static void* audio_render_thrd(void *param)
 {
 	avplay *play = (avplay*) param;
+	avaudioplay* audio = play->m_audioplay;
 	AVFrame audio_frame;
 	int audio_size = 0;
 	int ret, temp, inited = 0;
@@ -286,7 +310,7 @@ static void* audio_render_thrd(void *param)
 				inited = 1;
 				/* 配置渲染器. */
 				ret = play->m_ao_ctx->init_audio(play->m_ao_ctx,
-					FFMIN(play->m_audio_ctx->channels, 2), 16, play->m_audio_ctx->sample_rate, 0);
+					FFMIN(audio->m_audio_ctx->channels, 2), 16, audio->m_audio_ctx->sample_rate, 0);
 				if (ret != 0)
 					inited = -1;
 				else
@@ -294,8 +318,8 @@ static void* audio_render_thrd(void *param)
 					/* 更改播放状态. */
 					play->m_play_status = playing;
 				}
-				bytes_per_sec = play->m_audio_ctx->sample_rate *
-					FFMIN(play->m_audio_ctx->channels, 2) * av_get_bytes_per_sample(AV_SAMPLE_FMT_S16);
+				bytes_per_sec = audio->m_audio_ctx->sample_rate *
+					FFMIN(audio->m_audio_ctx->channels, 2) * av_get_bytes_per_sample(AV_SAMPLE_FMT_S16);
 				/* 修改音频设备初始化状态, 置为1. */
 				if (inited != -1)
 					play->m_ao_inited = 1;
@@ -314,8 +338,8 @@ static void* audio_render_thrd(void *param)
 
 			audio_size = audio_frame.linesize[0];
 			/* 清空. */
-			play->m_audio_buf_size = audio_size;
-			play->m_audio_buf_index = 0;
+			audio->m_audio_buf_size = audio_size;
+			audio->m_audio_buf_index = 0;
 
 			/* 已经开始播放, 清空seeking的状态. */
 			if (play->m_seeking == SEEKING_FLAG)
@@ -326,8 +350,8 @@ static void* audio_render_thrd(void *param)
 				if (inited == 1 && play->m_ao_ctx)
 				{
 					temp = play->m_ao_ctx->play_audio(play->m_ao_ctx,
-						audio_frame.data[0] + play->m_audio_buf_index, play->m_audio_buf_size - play->m_audio_buf_index);
-					play->m_audio_buf_index += temp;
+						audio_frame.data[0] + audio->m_audio_buf_index, audio->m_audio_buf_size - audio->m_audio_buf_index);
+					audio->m_audio_buf_index += temp;
 					/* 如果缓冲已满, 则休眠一小会. */
 					if (temp == 0)
 					{
@@ -343,7 +367,7 @@ static void* audio_render_thrd(void *param)
 				{
 					assert(0);
 				}
-				audio_size = play->m_audio_buf_size - play->m_audio_buf_index;
+				audio_size = audio->m_audio_buf_size - audio->m_audio_buf_index;
 			}
 
 			av_free(audio_frame.data[0]);

@@ -12,6 +12,24 @@
 struct avplay;
 
 typedef struct _avaudioplay {
+	AVCodecContext *m_audio_ctx;
+
+	/* 重采样音频指针.	*/
+	struct SwrContext *m_swr_ctx;
+	ReSampleContext *m_resample_ctx;
+
+	/* 最后一个解码帧的pts, 解码帧缓冲大小为2, 也就是当前播放帧的下一帧.	*/
+	double m_audio_clock;
+
+	/* 当前音频播放buffer大小.	*/
+	uint32_t m_audio_buf_size;
+
+	/* 当前音频已经播放buffer的位置.	*/
+	uint32_t m_audio_buf_index;
+	int32_t m_audio_write_buf_size;
+	double m_audio_current_pts_drift;
+	double m_audio_current_pts_last;
+
 	pthread_t m_audio_render_thrd;
 	pthread_t m_audio_dec_thrd;
 
@@ -21,7 +39,7 @@ typedef struct _avaudioplay {
 	int m_abort;
 } avaudioplay;
 
-avaudioplay* avaudioplay_create(avplay* play);
+avaudioplay* avaudioplay_create(avplay* play, AVCodecContext *ctx);
 
 int avaudioplay_start(avaudioplay* audio);
 

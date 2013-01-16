@@ -447,16 +447,6 @@ int initialize(avplay *play, source_context *sc)
 	if (play->m_audio_index != -1)
 		play->m_audio_st = play->m_format_ctx->streams[play->m_audio_index];
 
-	/* 保存audio和video的AVCodecContext指针.	*/
-	if (play->m_audio_index != -1)
-		play->m_audio_ctx = play->m_format_ctx->streams[play->m_audio_index]->codec;
-	/* 打开解码器. */
-	if (play->m_audio_index != -1)
-	{
-		ret = open_decoder(play->m_audio_ctx);
-		if (ret != 0)
-			goto FAILED_FLG;
-	}
 	/* 默认同步到音频.	*/
 	play->m_av_sync_type = AV_SYNC_AUDIO_MASTER;
 	play->m_abort = true;
@@ -486,8 +476,9 @@ int initialize(avplay *play, source_context *sc)
 	/* 初始化读取文件数据缓冲计数mutex. */
 	pthread_mutex_init(&play->m_buf_size_mtx, NULL);
 
+	/* 保存audio和video的AVCodecContext指针.	*/
 	/* 创建audio play*/
-	play->m_audioplay = avaudioplay_create(play);
+	play->m_audioplay = avaudioplay_create(play, play->m_format_ctx->streams[play->m_audio_index]->codec);
 	if (play->m_audioplay == NULL) {
 		goto FAILED_FLG;
 	}
@@ -598,7 +589,7 @@ void configure(avplay *play, void* param, int type)
 
 void enable_calc_frame_rate(avplay *play)
 {
-	play->m_enable_calc_frame_rate = 1;
+	play->m_videoplay->m_enable_calc_frame_rate = 1;
 }
 
 void enable_calc_bit_rate(avplay *play)
@@ -613,7 +604,7 @@ int current_bit_rate(avplay *play)
 
 int current_frame_rate(avplay *play)
 {
-	return play->m_real_frame_rate;
+	return play->m_videoplay->m_real_frame_rate;
 }
 
 void wait_for_completion(avplay *play)
@@ -630,16 +621,16 @@ void wait_for_threads(avplay *play)
 	void *status = NULL;
 	pthread_join(play->m_read_pkt_thrd, &status);
 	if (play->m_video_index != -1)
-		
-	if (play->m_audio_index != -1) {
-		avaudioplay_stop(play->m_audioplay);
-	}
-	if (play->m_video_index != -1) {
-		avvideoplay_stop(play->m_videoplay);
-	}
-		
-	/* 更改播放状态. */
-	play->m_play_status = stoped;
+
+		if (play->m_audio_index != -1) {
+			avaudioplay_stop(play->m_audioplay);
+		}
+		if (play->m_video_index != -1) {
+			avvideoplay_stop(play->m_videoplay);
+		}
+
+		/* 更改播放状态. */
+		play->m_play_status = stoped;
 }
 
 void av_stop(avplay *play)
@@ -663,14 +654,8 @@ void av_stop(avplay *play)
 	queue_end(&play->m_video_dq);
 
 	/* 关闭解码器以及渲染器. */
-	if (play->m_audio_ctx)
-		avcodec_close(play->m_audio_ctx);
 	if (play->m_format_ctx)
 		avformat_close_input(&play->m_format_ctx);
-	if (play->m_swr_ctx)
-		swr_free(&play->m_swr_ctx);
-	if (play->m_resample_ctx)
-		audio_resample_close(play->m_resample_ctx);
 #ifdef WIN32
 	if (play->m_buf_size_mtx)
 #endif
