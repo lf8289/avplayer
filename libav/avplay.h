@@ -37,14 +37,14 @@ struct AVStream;
 /* 播放器状态. */
 typedef enum play_status
 {
-	inited, playing, paused, completed, stoped
+    inited, playing, paused, completed, stoped
 } play_status;
 
 enum sync_type
 {
-	AV_SYNC_AUDIO_MASTER, /* 默认选择. */
-	AV_SYNC_VIDEO_MASTER, /* 同步到视频时间戳. */
-	AV_SYNC_EXTERNAL_CLOCK, /* 同步到外部时钟. */
+    AV_SYNC_AUDIO_MASTER, /* 默认选择. */
+    AV_SYNC_VIDEO_MASTER, /* 同步到视频时间戳. */
+    AV_SYNC_EXTERNAL_CLOCK, /* 同步到外部时钟. */
 };
 
 #define AVDECODE_BUFFER_SIZE	2
@@ -69,77 +69,77 @@ enum sync_type
 
 typedef struct avplay
 {
-	/* 文件打开指针. */
-	AVFormatContext *m_format_ctx;
+    /* 文件打开指针. */
+    AVFormatContext *m_format_ctx;
 
-	/* 音视频队列.	*/
-	av_queue m_audio_q;
-	av_queue m_video_q;
-	av_queue m_audio_dq;
-	av_queue m_video_dq;
+    /* 音视频队列.	*/
+    av_queue m_audio_q;
+    av_queue m_video_q;
+    av_queue m_audio_dq;
+    av_queue m_video_dq;
 
-	/* 各解码渲染线程.	*/
-	pthread_t m_read_pkt_thrd;
+    /* 各解码渲染线程.	*/
+    pthread_t m_read_pkt_thrd;
 
-	/* 音频和视频的AVStream、AVCodecContext指针和index.	*/
-	AVStream *m_audio_st;
-	AVStream *m_video_st;
-	int m_audio_index;
-	int m_video_index;
+    /* 音频和视频的AVStream、AVCodecContext指针和index.	*/
+    AVStream *m_audio_st;
+    AVStream *m_video_st;
+    int m_audio_index;
+    int m_video_index;
 
-	/* 读取数据包占用缓冲大小.	*/
-	long volatile m_pkt_buffer_size;
-	pthread_mutex_t m_buf_size_mtx;
+    /* 读取数据包占用缓冲大小.	*/
+    long volatile m_pkt_buffer_size;
+    pthread_mutex_t m_buf_size_mtx;
 
-	/* 同步类型. */
-	int m_av_sync_type;
+    /* 同步类型. */
+    int m_av_sync_type;
 
-	/* seek实现. */
-	int m_read_pause_return;
-	int m_seek_req;
-	int m_seek_flags;
-	int64_t m_seek_pos;
-	int64_t m_seek_rel;
-	int m_seek_by_bytes;
-	int m_seeking;
+    /* seek实现. */
+    int m_read_pause_return;
+    int m_seek_req;
+    int m_seek_flags;
+    int64_t m_seek_pos;
+    int64_t m_seek_rel;
+    int m_seek_by_bytes;
+    int m_seeking;
 
-	/* 最后一个解码帧的pts, 解码帧缓冲大小为2, 也就是当前播放帧的下一帧.	*/
-	double m_external_clock;
-	double m_external_clock_time;
+    /* 最后一个解码帧的pts, 解码帧缓冲大小为2, 也就是当前播放帧的下一帧.	*/
+    double m_external_clock;
+    double m_external_clock_time;
 
-	/* 当前数据源读取器. */
-	source_context *m_source_ctx;
-	AVIOContext *m_avio_ctx;
-	unsigned char *m_io_buffer;
+    /* 当前数据源读取器. */
+    source_context *m_source_ctx;
+    AVIOContext *m_avio_ctx;
+    unsigned char *m_io_buffer;
 
-	/* 当前音频渲染器.	*/
-	ao_context *m_ao_ctx;
-	/* 当前视频渲染器. */
-	vo_context *m_vo_ctx;
-	/* 当前音频渲染器是否已经初始化完成, 为1表示完成初始化, 0表示未完成初始化. */
-	int m_ao_inited;
+    /* 当前音频渲染器.	*/
+    ao_context *m_ao_ctx;
+    /* 当前视频渲染器. */
+    vo_context *m_vo_ctx;
+    /* 当前音频渲染器是否已经初始化完成, 为1表示完成初始化, 0表示未完成初始化. */
+    int m_ao_inited;
 
-	/* 播放状态. */
-	play_status m_play_status;
-	int m_rendering;
+    /* 播放状态. */
+    play_status m_play_status;
+    int m_rendering;
 
-	/* 实时视频输入位率. */
-	int m_enable_calc_video_bite;
-	int m_real_bit_rate;
-	int m_read_bytes[MAX_CALC_SEC]; /* 记录5秒内的字节数. */
-	int m_last_vb_time;
-	int m_vb_index;
+    /* 实时视频输入位率. */
+    int m_enable_calc_video_bite;
+    int m_real_bit_rate;
+    int m_read_bytes[MAX_CALC_SEC]; /* 记录5秒内的字节数. */
+    int m_last_vb_time;
+    int m_vb_index;
 
-	/* 正在播放的索引, 只用于BT文件播放. */
-	int m_current_play_index;
-	double m_start_time;
-	double m_buffering;
+    /* 正在播放的索引, 只用于BT文件播放. */
+    int m_current_play_index;
+    double m_start_time;
+    double m_buffering;
 
-	/* 停止标志.	*/
-	int m_abort;
+    /* 停止标志.	*/
+    int m_abort;
 
-	avaudioplay* m_audioplay;
-	avvideoplay* m_videoplay;
+    avaudioplay* m_audioplay;
+    avvideoplay* m_videoplay;
 
 } avplay;
 
@@ -329,7 +329,7 @@ EXPORT_API double buffering(avplay *play);
 * @param dcx is height of the target range.
 */
 EXPORT_API void blurring(AVFrame *frame,
-						 int fw, int fh, int dx, int dy, int dcx, int dcy);
+                         int fw, int fh, int dx, int dy, int dcx, int dcy);
 
 /*
 * Alpha blend image mixing.
@@ -343,7 +343,7 @@ EXPORT_API void blurring(AVFrame *frame,
 * @param y is the y start coordinates of the target location.
 */
 EXPORT_API void alpha_blend(AVFrame *frame, uint8_t *rgba,
-							int fw, int fh, int rgba_w, int rgba_h, int x, int y);
+                            int fw, int fh, int rgba_w, int rgba_h, int x, int y);
 __EXTERN_C_END
 
 /********************************************************************************

@@ -15,21 +15,21 @@
 class av_source
 {
 public:
-   av_source() {}
-   virtual ~av_source() {}
+    av_source() {}
+    virtual ~av_source() {}
 
 public:
-   // 打开.
-   virtual bool open(void *ctx) = 0;
+    // 打开.
+    virtual bool open(void *ctx) = 0;
 
-   // 读取数据.
-   virtual bool read_data(char *data, uint64_t offset, size_t size, size_t& read_size) = 0;
+    // 读取数据.
+    virtual bool read_data(char *data, uint64_t offset, size_t size, size_t& read_size) = 0;
 
-   // seek操作.
-   virtual bool read_seek(uint64_t offset, int whence) { return false; }
+    // seek操作.
+    virtual bool read_seek(uint64_t offset, int whence) { return false; }
 
-   // 关闭.
-   virtual void close() = 0;
+    // 关闭.
+    virtual void close() = 0;
 };
 
 
