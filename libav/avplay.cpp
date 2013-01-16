@@ -35,7 +35,6 @@
 
 /* ffmpeg相关操作函数. */
 static int stream_index(enum AVMediaType type, AVFormatContext *ctx);
-static int open_decoder(AVCodecContext *ctx);
 
 /* 读取数据线程.	*/
 static void* read_pkt_thrd(void *param);
@@ -195,7 +194,6 @@ int stream_index(enum AVMediaType type, AVFormatContext *ctx)
 	return -1;
 }
 
-static
 int open_decoder(AVCodecContext *ctx)
 {
 	int ret = 0;
@@ -286,6 +284,7 @@ avplay* alloc_avplay_context()
 void free_avplay_context(avplay *ctx)
 {
 	avaudioplay_destroy(ctx->m_audioplay);
+	avvideoplay_destroy(ctx->m_videoplay);
 	ctx->m_audioplay = NULL;
 	free(ctx);
 }
@@ -451,9 +450,6 @@ int initialize(avplay *play, source_context *sc)
 	/* 保存audio和video的AVCodecContext指针.	*/
 	if (play->m_audio_index != -1)
 		play->m_audio_ctx = play->m_format_ctx->streams[play->m_audio_index]->codec;
-	if (play->m_video_index != -1)
-		play->m_video_ctx = play->m_format_ctx->streams[play->m_video_index]->codec;
-
 	/* 打开解码器. */
 	if (play->m_audio_index != -1)
 	{
@@ -461,13 +457,6 @@ int initialize(avplay *play, source_context *sc)
 		if (ret != 0)
 			goto FAILED_FLG;
 	}
-	if (play->m_video_index != -1)
-	{
-		ret = open_decoder(play->m_video_ctx);
-		if (ret != 0)
-			goto FAILED_FLG;
-	}
-
 	/* 默认同步到音频.	*/
 	play->m_av_sync_type = AV_SYNC_AUDIO_MASTER;
 	play->m_abort = true;
@@ -499,7 +488,12 @@ int initialize(avplay *play, source_context *sc)
 
 	/* 创建audio play*/
 	play->m_audioplay = avaudioplay_create(play);
-	if (play == NULL) {
+	if (play->m_audioplay == NULL) {
+		goto FAILED_FLG;
+	}
+	/* 创建video play*/
+	play->m_videoplay = avvideoplay_create(play, play->m_format_ctx->streams[play->m_video_index]->codec);
+	if (play->m_videoplay == NULL) {
 		goto FAILED_FLG;
 	}
 
@@ -513,6 +507,14 @@ FAILED_FLG:
 		av_free(play->m_avio_ctx);
 	if (play->m_io_buffer)
 		av_free(play->m_io_buffer);
+	if (play->m_videoplay) {
+		avvideoplay_destroy(play->m_videoplay);
+		play->m_videoplay = NULL;
+	}
+	if (play->m_audioplay) {
+		avaudioplay_destroy(play->m_audioplay);
+		play->m_audioplay = NULL;
+	}
 
 	return -1;
 }
@@ -540,16 +542,7 @@ int av_start(avplay *play, double fact, int index)
 		printf("ERROR; return code from pthread_create() is %d\n", ret);
 		return ret;
 	}
-	if (play->m_video_index != -1)
-	{
-		ret = pthread_create(&play->m_video_dec_thrd, &attr, video_dec_thrd,
-			(void*) play);
-		if (ret)
-		{
-			printf("ERROR; return code from pthread_create() is %d\n", ret);
-			return ret;
-		}
-	}
+
 	if (play->m_audio_index != -1)
 	{
 		ret = avaudioplay_start(play->m_audioplay);
@@ -561,8 +554,7 @@ int av_start(avplay *play, double fact, int index)
 	}
 	if (play->m_video_index != -1)
 	{
-		ret = pthread_create(&play->m_video_render_thrd, &attr, video_render_thrd,
-			(void*) play);
+		ret = avvideoplay_start(play->m_videoplay);
 		if (ret)
 		{
 			printf("ERROR; return code from pthread_create() is %d\n", ret);
@@ -638,12 +630,14 @@ void wait_for_threads(avplay *play)
 	void *status = NULL;
 	pthread_join(play->m_read_pkt_thrd, &status);
 	if (play->m_video_index != -1)
-		pthread_join(play->m_video_dec_thrd, &status);
+		
 	if (play->m_audio_index != -1) {
 		avaudioplay_stop(play->m_audioplay);
 	}
-	if (play->m_video_index != -1)
-		pthread_join(play->m_video_render_thrd, &status);
+	if (play->m_video_index != -1) {
+		avvideoplay_stop(play->m_videoplay);
+	}
+		
 	/* 更改播放状态. */
 	play->m_play_status = stoped;
 }
@@ -671,8 +665,6 @@ void av_stop(avplay *play)
 	/* 关闭解码器以及渲染器. */
 	if (play->m_audio_ctx)
 		avcodec_close(play->m_audio_ctx);
-	if (play->m_video_ctx)
-		avcodec_close(play->m_video_ctx);
 	if (play->m_format_ctx)
 		avformat_close_input(&play->m_format_ctx);
 	if (play->m_swr_ctx)
@@ -813,7 +805,7 @@ double master_clock(avplay *play)
 	if (play->m_av_sync_type == AV_SYNC_VIDEO_MASTER)
 	{
 		if (play->m_video_st)
-			val = video_clock(play);
+			val = avvideoplay_clock(play->m_videoplay);
 		else
 			val = avaudioplay_clock(play->m_audioplay);
 	}
@@ -822,7 +814,7 @@ double master_clock(avplay *play)
 		if (play->m_audio_st)
 			val = avaudioplay_clock(play->m_audioplay);
 		else
-			val = video_clock(play);
+			val = avvideoplay_clock(play->m_videoplay);
 	}
 	else
 	{

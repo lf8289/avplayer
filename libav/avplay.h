@@ -25,6 +25,7 @@
 #include "globals.h"
 #include "avqueue.h"
 #include "avaudioplay.h"
+#include "avvideoplay.h"
 
 
 	struct AVFormatContext;
@@ -95,12 +96,6 @@ extern "C" {
 		av_queue m_video_dq;
 
 		/* 各解码渲染线程.	*/
-#if 0
-		pthread_t m_audio_dec_thrd;
-		pthread_t m_audio_render_thrd;
-#endif
-		pthread_t m_video_dec_thrd;
-		pthread_t m_video_render_thrd;
 		pthread_t m_read_pkt_thrd;
 
 		/* 重采样音频指针.	*/
@@ -110,7 +105,7 @@ extern "C" {
 
 		/* 音频和视频的AVStream、AVCodecContext指针和index.	*/
 		AVCodecContext *m_audio_ctx;
-		AVCodecContext *m_video_ctx;
+//		AVCodecContext *m_video_ctx;
 		AVStream *m_audio_st;
 		AVStream *m_video_st;
 		int m_audio_index;
@@ -208,6 +203,7 @@ extern "C" {
 		int m_abort;
 
 		avaudioplay* m_audioplay;
+		avvideoplay* m_videoplay;
 
 	} avplay;
 extern "C" {
@@ -404,5 +400,6 @@ extern "C" {
        for avvideoplay
 ********************************************************************************/
 	double master_clock(avplay *play);
+	int open_decoder(AVCodecContext *ctx);
 
 #endif /* AVPLAY_H_ */

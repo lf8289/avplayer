@@ -7,19 +7,31 @@
 
 #include "globals.h"
 #include "avqueue.h"
-#include "avplay.h"
+//#include "avplay.h"
 
-	void* video_dec_thrd(void *param);
+struct avplay;
 
-	void* video_render_thrd(void *param);
+typedef struct _avvideoplay {
+	AVCodecContext *m_video_ctx;
+	pthread_t m_video_dec_thrd;
+	pthread_t m_video_render_thrd;
 
-	/* 视频帧复制. */
-	void video_copy(avplay *play, AVFrame *dst, AVFrame *src);
+	struct avplay* m_play;
 
-	/* 更新视频pts. */
-	void update_video_pts(avplay *play, double pts, int64_t pos);
+	/* 停止标志.	*/
+	int m_abort;
+} avvideoplay;
 
-	double video_clock(avplay *play);
+avvideoplay* avvideoplay_create(avplay* play, AVCodecContext* ctx);
+
+int avvideoplay_start(avvideoplay* video);
+
+int avvideoplay_stop(avvideoplay* video);
+
+void avvideoplay_destroy(avvideoplay* video);
+
+/* 时钟函数. */
+double avvideoplay_clock(avvideoplay* video);
 
 
 #endif /*__AV_VIDEO_PLAY_H__*/

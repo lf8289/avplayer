@@ -433,26 +433,26 @@ LRESULT player_impl::win_wnd_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpa
 			int more_x = (GetSystemMetrics(SM_CXDLGFRAME) * 2)
 				+ (GetSystemMetrics(SM_CXBORDER) * 2);
 
-			if (!m_avplay || !m_avplay->m_video_ctx)
+			if (!m_avplay || !m_avplay->m_videoplay->m_video_ctx)
 				break;
 
-			if (m_avplay && m_avplay->m_video_ctx &&
-				(m_avplay->m_video_ctx->width != 0
-				|| m_avplay->m_video_ctx->height != 0
+			if (m_avplay && m_avplay->m_videoplay->m_video_ctx &&
+				(m_avplay->m_videoplay->m_video_ctx->width != 0
+				|| m_avplay->m_videoplay->m_video_ctx->height != 0
 				|| m_avplay->m_play_status == playing))
 			{
 				RECT rc = { 0 };
 				GetWindowRect(hwnd, &rc);
 				SetWindowPos(hwnd, HWND_NOTOPMOST, rc.left, rc.top,
-					m_avplay->m_video_ctx->width + more_x,
-					m_avplay->m_video_ctx->height + more_y,
+					m_avplay->m_videoplay->m_video_ctx->width + more_x,
+					m_avplay->m_videoplay->m_video_ctx->height + more_y,
 					SWP_FRAMECHANGED);
 				KillTimer(hwnd, ID_PLAYER_TIMER);
 			}
 
 			// 得到正确的宽高信息.
-			m_video_width = m_avplay->m_video_ctx->width;
-			m_video_height = m_avplay->m_video_ctx->height;
+			m_video_width = m_avplay->m_videoplay->m_video_ctx->width;
+			m_video_height = m_avplay->m_videoplay->m_video_ctx->height;
 		}
 		break;
 	case WM_KEYDOWN:
@@ -889,10 +889,10 @@ BOOL player_impl::open(const char *movie, int media_type, int render_type)
 		configure(m_avplay, m_audio, AUDIO_RENDER);
 
 		// 得到视频宽高.
-		if (m_avplay->m_video_ctx)
+		if (m_avplay->m_videoplay->m_video_ctx)
 		{
-			m_video_width = m_avplay->m_video_ctx->width;
-			m_video_height = m_avplay->m_video_ctx->height;
+			m_video_width = m_avplay->m_videoplay->m_video_ctx->width;
+			m_video_height = m_avplay->m_videoplay->m_video_ctx->height;
 		}
 
 		// 打开视频实时码率和帧率计算.
@@ -1133,14 +1133,14 @@ int player_impl::video_width()
 {
 	if (!m_avplay || !m_avplay->m_format_ctx)
 		return 0;
-	return m_avplay->m_video_ctx->width;
+	return m_avplay->m_videoplay->m_video_ctx->width;
 }
 
 int player_impl::video_height()
 {
 	if (!m_avplay || !m_avplay->m_format_ctx)
 		return 0;
-	return m_avplay->m_video_ctx->height;
+	return m_avplay->m_videoplay->m_video_ctx->height;
 }
 
 std::map<std::string, std::string>& player_impl::play_list()

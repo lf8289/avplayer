@@ -87,7 +87,7 @@ double avaudioplay_clock(avaudioplay* audio)
 	return pts - play->m_audio_current_pts_drift;
 }
 
-void audio_copy(avplay *play, AVFrame *dst, AVFrame* src)
+static void audio_copy(avplay *play, AVFrame *dst, AVFrame* src)
 {
 	int nb_sample;
 	int dst_buf_size;
@@ -155,7 +155,7 @@ void audio_copy(avplay *play, AVFrame *dst, AVFrame* src)
 	}
 }
 
-void* audio_dec_thrd(void *param)
+static void* audio_dec_thrd(void *param)
 {
 	AVPacket pkt, pkt2;
 	int ret, n;
@@ -266,7 +266,7 @@ void* audio_dec_thrd(void *param)
 	return NULL;
 }
 
-void* audio_render_thrd(void *param)
+static void* audio_render_thrd(void *param)
 {
 	avplay *play = (avplay*) param;
 	AVFrame audio_frame;

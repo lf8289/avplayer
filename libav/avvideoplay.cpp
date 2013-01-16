@@ -1,9 +1,98 @@
 #include "avvideoplay.h"
+#include "avplay.h"
 
 extern AVPacket flush_pkt;
 extern AVFrame flush_frm;
 
-void update_video_pts(avplay *play, double pts, int64_t pos)
+static void* video_dec_thrd(void *param);
+
+static void* video_render_thrd(void *param);
+
+	/* 视频帧复制. */
+static void video_copy(avplay *play, AVFrame *dst, AVFrame *src);
+
+	/* 更新视频pts. */
+static void update_video_pts(avplay *play, double pts, int64_t pos);
+
+avvideoplay* avvideoplay_create(avplay* play, AVCodecContext* ctx)
+{
+	avvideoplay* video = (avvideoplay*)malloc(sizeof(avvideoplay));
+	if (video != NULL) {
+		video->m_play = play;
+	}
+
+	video->m_video_ctx = ctx;
+	int ret = open_decoder(video->m_video_ctx);
+	if (ret != 0) {
+		goto VIDEO_CRT_ERR;
+	}
+
+	return video;
+
+VIDEO_CRT_ERR:
+	if (video != NULL) {
+		free(video);
+		video = NULL;
+	}
+
+	return NULL;
+}
+
+int avvideoplay_start(avvideoplay* video)
+{
+	pthread_attr_t attr;
+	int ret = 0;
+
+	pthread_attr_init(&attr);
+	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
+
+	ret = pthread_create(&video->m_video_dec_thrd, &attr, video_dec_thrd,(void*) video->m_play);
+	if (ret)
+	{
+		printf("ERROR; return code from pthread_create() is %d\n", ret);
+		return ret;
+	}
+
+	ret = pthread_create(&video->m_video_render_thrd, &attr, video_render_thrd, (void*) video->m_play);
+	if (ret)
+	{
+		printf("ERROR; return code from pthread_create() is %d\n", ret);
+		return ret;
+	}
+
+	return ret;
+}
+
+int avvideoplay_stop(avvideoplay* video)
+{
+	void *status = NULL;
+
+	video->m_abort = true;
+
+	pthread_join(video->m_video_dec_thrd, &status);
+	pthread_join(video->m_video_render_thrd, &status);
+
+	return 0;
+}
+
+void avvideoplay_destroy(avvideoplay* video)
+{
+	if (video->m_video_ctx) {
+		avcodec_close(video->m_video_ctx);
+		video->m_video_ctx = NULL;
+	}
+	free(video);
+}
+
+double avvideoplay_clock(avvideoplay* video)
+{
+	avplay *play = video->m_play;
+	if (play->m_play_status == paused)
+		return play->m_video_current_pts;
+	return play->m_video_current_pts_drift + av_gettime() / 1000000.0f;
+}
+
+static void update_video_pts(avplay *play, double pts, int64_t pos)
 {
 	double time = av_gettime() / 1000000.0;
 	/* update current video pts */
@@ -13,37 +102,31 @@ void update_video_pts(avplay *play, double pts, int64_t pos)
 	play->m_frame_last_pts = pts;
 }
 
-double video_clock(avplay *play)
+static void video_copy(avplay *play, AVFrame *dst, AVFrame *src)
 {
-	if (play->m_play_status == paused)
-		return play->m_video_current_pts;
-	return play->m_video_current_pts_drift + av_gettime() / 1000000.0f;
-}
-
-void video_copy(avplay *play, AVFrame *dst, AVFrame *src)
-{
+	avvideoplay* video = play->m_videoplay;
 	uint8_t *buffer;
-	int len = avpicture_get_size(PIX_FMT_YUV420P, play->m_video_ctx->width,
-		play->m_video_ctx->height);
+	int len = avpicture_get_size(PIX_FMT_YUV420P, video->m_video_ctx->width,
+		video->m_video_ctx->height);
 	*dst = *src;
 	buffer = (uint8_t*) av_malloc(len);
 	assert(buffer);
 
 	avpicture_fill((AVPicture*) &(*dst), buffer, PIX_FMT_YUV420P,
-		play->m_video_ctx->width, play->m_video_ctx->height);
+		video->m_video_ctx->width, video->m_video_ctx->height);
 
-	play->m_swsctx = sws_getContext(play->m_video_ctx->width,
-		play->m_video_ctx->height, play->m_video_ctx->pix_fmt,
-		play->m_video_ctx->width, play->m_video_ctx->height,
+	play->m_swsctx = sws_getContext(video->m_video_ctx->width,
+		video->m_video_ctx->height, video->m_video_ctx->pix_fmt,
+		video->m_video_ctx->width, video->m_video_ctx->height,
 		PIX_FMT_YUV420P, SWS_BICUBIC, NULL, NULL, NULL);
 
 	sws_scale(play->m_swsctx, src->data, src->linesize, 0,
-		play->m_video_ctx->height, dst->data, dst->linesize);
+		video->m_video_ctx->height, dst->data, dst->linesize);
 
 	sws_freeContext(play->m_swsctx);
 }
 
-void* video_dec_thrd(void *param)
+static void* video_dec_thrd(void *param)
 {
 	AVPacket pkt, pkt2;
 	AVFrame *avframe, avcopy;
@@ -52,6 +135,7 @@ void* video_dec_thrd(void *param)
 	avplay *play = (avplay*) param;
 	int64_t v_start_time = 0;
 	int64_t a_start_time = 0;
+	avvideoplay* video = play->m_videoplay;
 
 	avframe = avcodec_alloc_frame();
 
@@ -73,7 +157,7 @@ void* video_dec_thrd(void *param)
 			{
 				AVFrameList* lst = NULL;
 
-				avcodec_flush_buffers(play->m_video_ctx);
+				avcodec_flush_buffers(video->m_video_ctx);
 
 				while (play->m_video_dq.m_size && !play->m_abort)
 					Sleep(1);
@@ -100,7 +184,7 @@ void* video_dec_thrd(void *param)
 
 			while (pkt2.size > 0 && !play->m_abort)
 			{
-				ret = avcodec_decode_video2(play->m_video_ctx, avframe, &got_picture, &pkt2);
+				ret = avcodec_decode_video2(video->m_video_ctx, avframe, &got_picture, &pkt2);
 				if (ret < 0)
 				{
 					printf("Video error while decoding one frame!!!\n");
@@ -151,7 +235,7 @@ void* video_dec_thrd(void *param)
 					ret = 1;
 					if (play->m_frame_last_pts != AV_NOPTS_VALUE && pts)
 					{
-						double clockdiff = video_clock(play) - master_clock(play);
+						double clockdiff = avvideoplay_clock(play->m_videoplay) - master_clock(play);
 						double ptsdiff = pts - play->m_frame_last_pts;
 
 						/*
@@ -199,7 +283,7 @@ void* video_dec_thrd(void *param)
 				/*
 				*	计算当前帧的延迟时长.
 				*/
-				frame_delay = av_q2d(play->m_video_ctx->time_base);
+				frame_delay = av_q2d(video->m_video_ctx->time_base);
 				frame_delay += avcopy.repeat_pict * (frame_delay * 0.5);
 
 				/*
@@ -232,9 +316,10 @@ void* video_dec_thrd(void *param)
 	return NULL;
 }
 
-void* video_render_thrd(void *param)
+static void* video_render_thrd(void *param)
 {
 	avplay *play = (avplay*) param;
+	avvideoplay* video = play->m_videoplay;
 	AVFrame video_frame;
 	int ret = 0;
 	int inited = 0;
@@ -279,7 +364,7 @@ void* video_render_thrd(void *param)
 				inited = 1;
 				play->m_vo_ctx->fps = (float)play->m_video_st->r_frame_rate.num / (float)play->m_video_st->r_frame_rate.den;
 				ret = play->m_vo_ctx->init_video(play->m_vo_ctx,
-					play->m_video_ctx->width, play->m_video_ctx->height, play->m_video_ctx->pix_fmt);
+					video->m_video_ctx->width, video->m_video_ctx->height, video->m_video_ctx->pix_fmt);
 				if (ret != 0)
 					inited = -1;
 				else
@@ -311,7 +396,7 @@ void* video_render_thrd(void *param)
 				if ((play->m_av_sync_type == AV_SYNC_EXTERNAL_CLOCK) ||
 					(play->m_av_sync_type == AV_SYNC_AUDIO_MASTER && play->m_audio_st))
 				{
-					diff = video_clock(play) - master_clock(play);
+					diff = avvideoplay_clock(play->m_videoplay) - master_clock(play);
 					sync_threshold = FFMAX(AV_SYNC_THRESHOLD, delay) * 0.75;
 					if (fabs(diff) < AV_NOSYNC_THRESHOLD)
 					{
@@ -416,7 +501,7 @@ void* video_render_thrd(void *param)
 
 				if (inited == 1 && play->m_vo_ctx)
 				{
-					play->m_vo_ctx->render_one_frame(play->m_vo_ctx, &video_frame, play->m_video_ctx->pix_fmt, av_curr_play_time(play));
+					play->m_vo_ctx->render_one_frame(play->m_vo_ctx, &video_frame, video->m_video_ctx->pix_fmt, av_curr_play_time(play));
 					if (delay != 0)
 						Sleep(4);
 				}
@@ -429,7 +514,7 @@ void* video_render_thrd(void *param)
 			/* 如果处于暂停状态, 则直接渲染窗口, 以免黑屏. */
 			while (play->m_play_status == paused && inited == 1 && play->m_vo_ctx && !play->m_abort)
 			{
-				play->m_vo_ctx->render_one_frame(play->m_vo_ctx, &video_frame, play->m_video_ctx->pix_fmt, av_curr_play_time(play));
+				play->m_vo_ctx->render_one_frame(play->m_vo_ctx, &video_frame, video->m_video_ctx->pix_fmt, av_curr_play_time(play));
 				Sleep(16);
 			}
 
