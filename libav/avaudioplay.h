@@ -9,14 +9,59 @@
 #include "avqueue.h"
 //#include "avplay.h"
 
-struct avplay;
+class VMPlayer;
 
-typedef struct _avaudioplay {
+class AudioPlayer
+{
+public:
+    AudioPlayer(VMPlayer* play, AVStream* stream);
+    ~AudioPlayer();
+
+    void set_render(ao_context* render);
+
+    int start();
+
+    int stop();
+
+    int set_volume(double l, double r);
+
+    void set_mute(int s);
+
+    /* 时钟函数. */
+    double clock();
+
+    void put_packet(AVPacket* packet);
+
+    void put_flush_packet();
+
+protected:
+    /* 解码线程*/
+    void dec_thrd();
+
+    /* 渲染线程. */
+    void render_thrd();
+
+    /* 视频帧复制. */
+    void audio_copy(AVFrame *dst, AVFrame *src);
+
+    static void* dec_thrd_entry(void* param);
+    static void* render_thrd_entry(void* param);
+
+private:
+    AVStream* audio_stream_;
     AVCodecContext *m_audio_ctx;
+
+    /* 当前音频渲染器.	*/
+    ao_context *m_ao_ctx;
+    bool m_ao_inited;
 
     /* 重采样音频指针.	*/
     struct SwrContext *m_swr_ctx;
     ReSampleContext *m_resample_ctx;
+
+    /* 音频队列.	*/
+    av_queue m_audio_q;
+    av_queue m_audio_dq;
 
     /* 最后一个解码帧的pts, 解码帧缓冲大小为2, 也就是当前播放帧的下一帧.	*/
     double m_audio_clock;
@@ -33,21 +78,10 @@ typedef struct _avaudioplay {
     pthread_t m_audio_render_thrd;
     pthread_t m_audio_dec_thrd;
 
-    struct avplay* m_play;
+    VMPlayer* m_play;
 
     /* 停止标志.	*/
-    int m_abort;
-} avaudioplay;
-
-avaudioplay* avaudioplay_create(avplay* play, AVCodecContext *ctx);
-
-int avaudioplay_start(avaudioplay* audio);
-
-int avaudioplay_stop(avaudioplay* audio);
-
-void avaudioplay_destroy(avaudioplay* audio);
-
-/* 时钟函数. */
-double avaudioplay_clock(avaudioplay* audio);
+    bool m_abort;
+};
 
 #endif /* AVPLAY_H_ */

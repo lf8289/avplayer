@@ -200,6 +200,10 @@
 				RelativePath=".\avvideoplay.cpp"
 				>
 			</File>
+			<File
+				RelativePath=".\mediaplayer.cpp"
+				>
+			</File>
 		</Filter>
 		<Filter
 			Name="Í·ÎÄ¼þ"
@@ -228,6 +232,10 @@
 			</File>
 			<File
 				RelativePath=".\globals.h"
+				>
+			</File>
+			<File
+				RelativePath=".\mediaplayer.h"
 				>
 			</File>
 		</Filter>

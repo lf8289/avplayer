@@ -9,16 +9,58 @@
 #include "avqueue.h"
 //#include "avplay.h"
 
-/* 计算视频实时帧率和实时码率的时间单元. */
-#define MAX_CALC_SEC 5
+class VMPlayer;
 
-struct avplay;
+class VideoPlayer
+{
+public:
+    VideoPlayer(VMPlayer* play, AVStream* stream);
+    ~VideoPlayer();
 
-typedef struct _avvideoplay {
+    void set_render(vo_context* render);
+
+    int start();
+
+    int stop();
+
+    void enable_calc_frame_rate();
+
+    int get_frame_rate();
+
+    /* 时钟函数. */
+    double clock();
+
+    void put_packet(AVPacket* packet);
+
+    void put_flush_packet();
+
+    bool is_rending();
+
+protected:
+    void update_pts(double pts, int64_t pos);
+
+    void dec_thrd();
+
+    void render_thrd();
+
+    /* 视频帧复制. */
+    void video_copy(AVFrame *dst, AVFrame *src);
+
+    static void* dec_thrd_entry(void* param);
+    static void* render_thrd_entry(void* param);
+
+private:
+    AVStream* video_stream_;
     AVCodecContext *m_video_ctx;
+
+    vo_context *m_vo_ctx;
 
     /* 重采样音频指针.	*/
     struct SwsContext *m_swsctx;
+
+    /* 视频队列.	*/
+    av_queue m_video_q;
+    av_queue m_video_dq;
 
     /* 最后一个解码帧的pts, 解码帧缓冲大小为2, 也就是当前播放帧的下一帧.	*/
     double m_video_clock;
@@ -56,22 +98,12 @@ typedef struct _avvideoplay {
     pthread_t m_video_dec_thrd;
     pthread_t m_video_render_thrd;
 
-    struct avplay* m_play;
+    VMPlayer* m_play;
 
     /* 停止标志.	*/
-    int m_abort;
-} avvideoplay;
+    bool m_abort;
 
-avvideoplay* avvideoplay_create(avplay* play, AVCodecContext* ctx);
-
-int avvideoplay_start(avvideoplay* video);
-
-int avvideoplay_stop(avvideoplay* video);
-
-void avvideoplay_destroy(avvideoplay* video);
-
-/* 时钟函数. */
-double avvideoplay_clock(avvideoplay* video);
-
+    bool m_rendering;
+};
 
 #endif /*__AV_VIDEO_PLAY_H__*/

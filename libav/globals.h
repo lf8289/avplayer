@@ -143,4 +143,40 @@ typedef struct ao_context
     void *audio_dev;
 } ao_context;
 
+/* 播放器状态. */
+typedef enum play_status
+{
+    inited, playing, paused, completed, stoped
+} play_status;
+
+enum sync_type
+{
+    AV_SYNC_AUDIO_MASTER, /* 默认选择. */
+    AV_SYNC_VIDEO_MASTER, /* 同步到视频时间戳. */
+    AV_SYNC_EXTERNAL_CLOCK, /* 同步到外部时钟. */
+};
+
+#define AVDECODE_BUFFER_SIZE	2
+
+#define AV_SYNC_THRESHOLD		0.01f
+#define AV_NOSYNC_THRESHOLD		10.0f
+#define AUDIO_DIFF_AVG_NB		20
+
+#define SEEKING_FLAG			-1
+#define NOSEEKING_FLAG			0
+
+/* 用于config_render参数表示所配置的render.  */
+#define MEDIA_SOURCE			0
+#define AUDIO_RENDER			1
+#define VIDEO_RENDER			2
+
+/* 用于标识渲染器类型. */
+#define VIDEO_RENDER_D3D		0
+#define VIDEO_RENDER_DDRAW		1
+#define VIDEO_RENDER_OPENGL		2
+#define VIDEO_RENDER_SOFT		3
+
+/* 计算视频实时帧率和实时码率的时间单元. */
+#define MAX_CALC_SEC 5
+
 #endif /* __AVPLAYER_GLOBALS_H__ */

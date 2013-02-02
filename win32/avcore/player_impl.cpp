@@ -433,26 +433,23 @@ LRESULT player_impl::win_wnd_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpa
             int more_x = (GetSystemMetrics(SM_CXDLGFRAME) * 2)
                 + (GetSystemMetrics(SM_CXBORDER) * 2);
 
-            if (!m_avplay || !m_avplay->m_videoplay->m_video_ctx)
+            if (!m_avplay)
                 break;
 
-            if (m_avplay && m_avplay->m_videoplay->m_video_ctx &&
-                (m_avplay->m_videoplay->m_video_ctx->width != 0
-                || m_avplay->m_videoplay->m_video_ctx->height != 0
-                || m_avplay->m_play_status == playing))
+            if (m_avplay && av_status(m_avplay) == playing)
             {
                 RECT rc = { 0 };
                 GetWindowRect(hwnd, &rc);
                 SetWindowPos(hwnd, HWND_NOTOPMOST, rc.left, rc.top,
-                    m_avplay->m_videoplay->m_video_ctx->width + more_x,
-                    m_avplay->m_videoplay->m_video_ctx->height + more_y,
+                    av_width(m_avplay) + more_x,
+                    av_height(m_avplay) + more_y,
                     SWP_FRAMECHANGED);
                 KillTimer(hwnd, ID_PLAYER_TIMER);
             }
 
             // 得到正确的宽高信息.
-            m_video_width = m_avplay->m_videoplay->m_video_ctx->width;
-            m_video_height = m_avplay->m_videoplay->m_video_ctx->height;
+            m_video_width = av_width(m_avplay);
+            m_video_height = av_height(m_avplay);
         }
         break;
     case WM_KEYDOWN:
@@ -463,9 +460,9 @@ LRESULT player_impl::win_wnd_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpa
         break;
     case WM_RBUTTONDOWN:
         {
-            if (m_avplay && m_avplay->m_play_status == playing)
+            if (m_avplay && av_status(m_avplay) == playing)
                 pause();
-            else if (m_avplay && m_avplay->m_play_status == paused)
+            else if (m_avplay && av_status(m_avplay) == paused)
                 resume();
         }
         break;
@@ -477,8 +474,8 @@ LRESULT player_impl::win_wnd_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpa
             int xpos = LOWORD(lparam);
             double fact = (double)xpos / width;
 
-            if (m_avplay && (m_avplay->m_play_status == playing
-                || m_avplay->m_play_status == completed)
+            if (m_avplay && (av_status(m_avplay) == playing
+                || av_status(m_avplay) == completed)
                 && (fact >= 0.0f && fact <= 1.0f))
                 ::av_seek(m_avplay, fact);
         }
@@ -506,7 +503,7 @@ LRESULT player_impl::win_wnd_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpa
         {
             RECT window;
             GetClientRect(hwnd, &window);
-            if (m_avplay && m_avplay->m_vo_ctx &&
+            if (m_avplay && /*m_avplay->m_vo_ctx &&*/
                 m_video->video_dev)
             {
                 m_video->re_size(m_video, LOWORD(lparam), HIWORD(lparam));
@@ -530,7 +527,7 @@ LRESULT player_impl::win_wnd_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpa
 void player_impl::win_paint(HWND hwnd, HDC hdc)
 {
     if (m_avplay &&
-        m_avplay->m_vo_ctx &&
+        /*m_avplay->m_vo_ctx &&*/
         m_video->video_dev &&
         m_video->use_overlay(m_video) != -1)
     {
@@ -856,8 +853,8 @@ BOOL player_impl::open(const char *movie, int media_type, int render_type)
         if (media_type == MEDIA_TYPE_BT)
         {
             int i = 0;
-            media_info *media = m_avplay->m_source_ctx->media;
-            for (; i < m_avplay->m_source_ctx->media_size; i++)
+            media_info *media = m_source->media;
+            for (; i < m_source->media_size; i++)
             {
                 std::string name;
                 name = media->name;
@@ -889,11 +886,8 @@ BOOL player_impl::open(const char *movie, int media_type, int render_type)
         configure(m_avplay, m_audio, AUDIO_RENDER);
 
         // 得到视频宽高.
-        if (m_avplay->m_videoplay->m_video_ctx)
-        {
-            m_video_width = m_avplay->m_videoplay->m_video_ctx->width;
-            m_video_height = m_avplay->m_videoplay->m_video_ctx->height;
-        }
+        m_video_width = av_width(m_avplay);
+        m_video_height = av_height(m_avplay);
 
         // 打开视频实时码率和帧率计算.
         enable_calc_frame_rate(m_avplay);
@@ -935,7 +929,7 @@ BOOL player_impl::play(double fact/* = 0.0f*/, int index /*= 0*/)
 
 BOOL player_impl::pause()
 {
-    if (m_avplay && m_avplay->m_play_status == playing)
+    if (m_avplay && av_status(m_avplay) == playing)
     {
         ::av_pause(m_avplay);
         ::logger("set to pause.\n");
@@ -947,7 +941,7 @@ BOOL player_impl::pause()
 
 BOOL player_impl::resume()
 {
-    if (m_avplay && m_avplay->m_play_status == paused)
+    if (m_avplay && av_status(m_avplay) == paused)
     {
         ::av_resume(m_avplay);
         ::logger("set to resume.\n");
@@ -1124,23 +1118,23 @@ double player_impl::curr_play_time()
 
 double player_impl::duration()
 {
-    if (!m_avplay || !m_avplay->m_format_ctx)
+    if (!m_avplay)
         return -1.0f;
-    return (double)m_avplay->m_format_ctx->duration / AV_TIME_BASE;
+    return av_duration(m_avplay);
 }
 
 int player_impl::video_width()
 {
-    if (!m_avplay || !m_avplay->m_format_ctx)
+    if (!m_avplay)
         return 0;
-    return m_avplay->m_videoplay->m_video_ctx->width;
+    return av_width(m_avplay);
 }
 
 int player_impl::video_height()
 {
-    if (!m_avplay || !m_avplay->m_format_ctx)
+    if (!m_avplay)
         return 0;
-    return m_avplay->m_videoplay->m_video_ctx->height;
+    return av_height(m_avplay);
 }
 
 std::map<std::string, std::string>& player_impl::play_list()
